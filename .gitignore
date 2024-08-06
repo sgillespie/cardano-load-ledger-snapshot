@@ -1,2 +1,9 @@
 # Cabal
 dist-newstyle
+
+# Nix
+result
+.direnv
+
+# Emacs
+.dir-locals.el
