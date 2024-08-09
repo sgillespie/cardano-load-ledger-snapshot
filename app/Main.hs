@@ -8,6 +8,7 @@ import Cardano.Binary (Decoder (), FromCBOR (..))
 import qualified Cardano.Binary as Binary
 import Cardano.Chain.Epoch.File (mainnetEpochSlots)
 import Cardano.Ledger.Crypto (StandardCrypto ())
+import Control.Concurrent (threadDelay)
 import Control.Exception (IOException (), try)
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
@@ -32,17 +33,22 @@ import Ouroboros.Consensus.Storage.Serialisation (DecodeDisk (..))
 main :: IO ()
 main = do
   opts <- parseOpts
-
   let snapshotFile = path opts
 
   putStrLn $ "Loading " <> snapshotFile <> "."
 
+  -- Load the ledger state file into meory
   ledgerState' <- loadLedgerState snapshotFile
+
+  -- Print some information about it
   case ledgerState' of
     Left e -> putStrLn $ "Error: " <> show e
     Right ledger -> do
       putStrLn $ "Loaded " <> snapshotFile <> "."
       reportLedgerState ledger
+
+  -- Wait 1 second to make sure we get a profiler sample
+  threadDelay 1000000
 
 type CardanoExtLedgerState c = ExtLedgerState (CardanoBlock c)
 
