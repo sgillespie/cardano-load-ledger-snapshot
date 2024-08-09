@@ -52,6 +52,6 @@
       in
         flake // {
           # Built by `nix build .`
-          packages.default = flake.packages."cardano-load-ledger-snapshot:exe:cardano-load-ledger-snapshot";
+          packages.default = flake.packages."lstate-loader:exe:lstate-loader";
         });
 }

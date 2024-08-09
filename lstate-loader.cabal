@@ -1,22 +1,25 @@
 cabal-version:      3.0
-name:               cardano-load-ledger-snapshot
-version:            0.1.0.0
+name:               lstate-loader
+version:            1.0.0.0
 license:            Apache-2.0
 license-file:       LICENSE
+synopsis:           Loads cardano-db-sync ledger state snapshots into memory
+description:
+  A simple application that loads ledger state snapshots from cardano-db-sync into memory,
+  primarily for profiling memory usage.
 author:             Sean D Gillespie
 maintainer:         sean@mistersg.net
 category:           Data
 build-type:         Simple
-extra-doc-files:    CHANGELOG.md
 
 common warnings
     ghc-options: -Wall
 
-executable cardano-load-ledger-snapshot
+executable lstate-loader
     import:           warnings
     main-is:          Main.hs
     build-depends:
-      base ^>=4.18.2.1,
+      base,
       bytestring,
       optparse-applicative,
       ouroboros-consensus,
