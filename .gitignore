@@ -1,6 +1,10 @@
 # Cabal
 dist-newstyle
 
+# GHC
+*.eventlog
+*.eventlog.html
+
 # Nix
 result
 .direnv
