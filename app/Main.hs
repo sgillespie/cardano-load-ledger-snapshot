@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
 
+import Cardano.Binary (Decoder (), FromCBOR (..))
 import qualified Cardano.Binary as Binary
 import Cardano.Chain.Epoch.File (mainnetEpochSlots)
 import Cardano.Ledger.Crypto (StandardCrypto ())
@@ -12,6 +14,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as ByteString
 import Data.Text (Text ())
 import qualified Data.Text as Text
+import Data.Word (Word64 (), Word8 ())
 import Formatting.Buildable (Buildable (..))
 import Formatting.FromBuilder (FromBuilder (..))
 import Options.Applicative (Parser (), (<**>))
@@ -40,6 +43,26 @@ main = do
 
 type CardanoExtLedgerState c = ExtLedgerState (CardanoBlock c)
 
+data CardanoLedgerState c = CardanoLedgerState
+  { clsState :: !(CardanoExtLedgerState c),
+    clsEpochBlockNo :: !EpochBlockNo
+  }
+
+data EpochBlockNo
+  = GenesisEpochBlockNo
+  | EBBEpochBlockNo
+  | EpochBlockNo !Word64
+  deriving (Eq, Show)
+
+instance FromCBOR EpochBlockNo where
+  fromCBOR = do
+    tag <- fromCBOR @Word8
+    case tag of
+      0 -> pure GenesisEpochBlockNo
+      1 -> pure EBBEpochBlockNo
+      2 -> EpochBlockNo <$> fromCBOR
+      n -> fail $ "unexpected EpochBlockNo value " <> show n
+
 -- * Parse CLI Options
 parseOpts :: IO Options
 parseOpts = Optparse.execParser (opts info)
@@ -63,7 +86,7 @@ optParser =
         Optparse.metavar "FILE"
 
 -- * Load ledger file
-loadLedgerState :: FilePath -> IO (Either Text (CardanoExtLedgerState StandardCrypto))
+loadLedgerState :: FilePath -> IO (Either Text (CardanoLedgerState StandardCrypto))
 loadLedgerState snapshot = do
   bytes <- readStateFile snapshot
   pure (decodeSnapshot =<< bytes)
@@ -74,17 +97,19 @@ readStateFile snapshot = first toText' <$> tryRead
     tryRead = try @IOException (ByteString.readFile snapshot)
     toText' = Text.pack . show
 
-decodeSnapshot :: ByteString -> Either Text (CardanoExtLedgerState StandardCrypto)
+decodeSnapshot :: ByteString -> Either Text (CardanoLedgerState StandardCrypto)
 decodeSnapshot bytes = first toText ledgerState'
   where
     ledgerState' = Binary.decodeFullDecoder' "Ledger state file" decodeLedgerState bytes
 
-decodeLedgerState :: Binary.Decoder s (CardanoExtLedgerState StandardCrypto)
-decodeLedgerState =
-  decodeExtLedgerState
-    (decodeDisk codecConfig)
-    (decodeDisk codecConfig)
-    (decodeDisk codecConfig)
+decodeLedgerState :: Decoder s (CardanoLedgerState StandardCrypto)
+decodeLedgerState = CardanoLedgerState <$> extLedgerStateDecoder <*> Binary.fromCBOR
+  where
+    extLedgerStateDecoder =
+      decodeExtLedgerState
+        (decodeDisk codecConfig)
+        (decodeDisk codecConfig)
+        (decodeDisk codecConfig)
 
 codecConfig :: CodecConfig (CardanoBlock StandardCrypto)
 codecConfig = pClientInfoCodecConfig protoInfo
@@ -92,7 +117,7 @@ codecConfig = pClientInfoCodecConfig protoInfo
     protoInfo = protocolClientInfoCardano mainnetEpochSlots
 
 -- * Try to extract some meaningful information from ledger state
-reportLedgerState :: CardanoExtLedgerState StandardCrypto -> IO ()
+reportLedgerState :: CardanoLedgerState StandardCrypto -> IO ()
 reportLedgerState state = pure ()
 
 toText :: (Buildable b) => b -> Text
