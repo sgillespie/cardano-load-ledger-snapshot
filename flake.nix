@@ -33,6 +33,7 @@
               fourmolu = {};
               hlint = {};
               haskell-language-server = {};
+              eventlog2html = {};
             };
 
             shell.buildInputs = with pkgs; [
