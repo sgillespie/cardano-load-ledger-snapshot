@@ -19,8 +19,11 @@ import Formatting.Buildable (Buildable (..))
 import Formatting.FromBuilder (FromBuilder (..))
 import Options.Applicative (Parser (), (<**>))
 import qualified Options.Applicative as Optparse
+import Ouroboros.Consensus.Block.Abstract (BlockNo ())
+import qualified Ouroboros.Consensus.Block.Abstract as Block
 import Ouroboros.Consensus.Cardano.Block (CardanoBlock (), CodecConfig ())
 import Ouroboros.Consensus.Cardano.Node (protocolClientInfoCardano)
+import Ouroboros.Consensus.HeaderValidation (AnnTip (..), HeaderState (..))
 import Ouroboros.Consensus.Ledger.Extended (ExtLedgerState (..), decodeExtLedgerState)
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolClientInfo (..))
 import Ouroboros.Consensus.Shelley.Ledger.SupportsProtocol ()
@@ -118,7 +121,17 @@ codecConfig = pClientInfoCodecConfig protoInfo
 
 -- * Try to extract some meaningful information from ledger state
 reportLedgerState :: CardanoLedgerState StandardCrypto -> IO ()
-reportLedgerState state = pure ()
+reportLedgerState (CardanoLedgerState state _) =
+  putStrLn . info . getBlockNo $ state
+  where
+    info (Just blockNo) = "Tip is at block " <> show (Block.unBlockNo blockNo)
+    info Nothing = "Tip is at origin"
+
+getBlockNo :: CardanoExtLedgerState StandardCrypto -> Maybe BlockNo
+getBlockNo (ExtLedgerState _ header) = annTipBlockNo <$> tip
+  where
+    HeaderState origin _ = header
+    tip = Block.withOriginToMaybe origin
 
 toText :: (Buildable b) => b -> Text
 toText = fromBuilder . build
