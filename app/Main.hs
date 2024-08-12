@@ -46,9 +46,6 @@ main = do
       putStrLn $ "Loaded " <> snapshotFile <> "."
       reportLedgerState ledger
 
-  -- Wait 1 second to make sure we get a profiler sample
-  threadDelay 1000000
-
 type CardanoExtLedgerState c = ExtLedgerState (CardanoBlock c)
 
 data CardanoLedgerState c = CardanoLedgerState
