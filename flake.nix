@@ -28,17 +28,24 @@
               "https://chap.intersectmbo.org/" = inputs.chap;
             };
 
-            shell.tools = {
-              cabal = {};
-              fourmolu = {};
-              hlint = {};
-              haskell-language-server = {};
-              eventlog2html = {};
+            shell = {
+              tools = {
+                cabal = {};
+                fourmolu = {};
+                hlint = {};
+                haskell-language-server = {};
+                eventlog2html = {};
+              };
+
+              buildInputs = with pkgs; [
+                nixpkgs-fmt
+              ];
             };
 
-            shell.buildInputs = with pkgs; [
-              nixpkgs-fmt
-            ];
+            modules = [{
+              enableLibraryProfiling = true;
+              enableProfiling = true;
+            }];
           };
 
 
