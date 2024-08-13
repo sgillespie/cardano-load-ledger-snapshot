@@ -1,9 +1,11 @@
 # Cabal
 dist-newstyle
+data
 
 # GHC
 *.eventlog
 *.eventlog.html
+*.hp
 
 # Nix
 result

@@ -49,10 +49,14 @@ library
       cardano-binary,
       cardano-ledger-byron,
       cardano-ledger-core,
+      cardano-ledger-shelley,
       cardano-prelude,
+      data-default-class,
       formatting,
       ouroboros-consensus,
       ouroboros-consensus-cardano,
+      sop-core,
+      strict-sop-core,
       text
     hs-source-dirs:   app
     default-language: Haskell2010

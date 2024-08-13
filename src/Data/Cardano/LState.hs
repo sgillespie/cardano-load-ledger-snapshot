@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data.Cardano.LState
   ( CardanoExtLedgerState (),
@@ -14,24 +16,32 @@ import Cardano.Binary (Decoder (), Encoding (), FromCBOR (..), ToCBOR (..))
 import qualified Cardano.Binary as Binary
 import Cardano.Chain.Epoch.File (mainnetEpochSlots)
 import Cardano.Ledger.Crypto (StandardCrypto ())
+import Cardano.Ledger.Shelley.Governance (EraGov (..))
+import Cardano.Ledger.Shelley.LedgerState (NewEpochState (..))
 import Control.Exception (IOException (), try)
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as ByteString
+import Data.Default.Class (Default (..))
+import Data.SOP.Strict (NP (..), fn, hap, type (-.->))
 import Data.Text (Text ())
 import qualified Data.Text as Text
 import Data.Word (Word64 (), Word8 ())
 import Formatting.Buildable (Buildable (..))
 import Formatting.FromBuilder (FromBuilder (..))
-import Ouroboros.Consensus.Cardano.Block (CardanoBlock (), CodecConfig ())
+import qualified Ouroboros.Consensus.Cardano.Block as Block
 import Ouroboros.Consensus.Cardano.Node (protocolClientInfoCardano)
+import Ouroboros.Consensus.HardFork.Combinator (LedgerState (..))
 import Ouroboros.Consensus.Ledger.Extended (ExtLedgerState ())
 import qualified Ouroboros.Consensus.Ledger.Extended as ExtLedger
 import Ouroboros.Consensus.Node.ProtocolInfo (ProtocolClientInfo (..))
+import Ouroboros.Consensus.Shelley.Ledger.Block (ShelleyBlock (..))
+import Ouroboros.Consensus.Shelley.Ledger.Ledger (LedgerState (..))
 import Ouroboros.Consensus.Shelley.Ledger.SupportsProtocol ()
 import Ouroboros.Consensus.Storage.Serialisation (DecodeDisk (..), EncodeDisk (..))
 
-type CardanoExtLedgerState c = ExtLedgerState (CardanoBlock c)
+type CardanoExtLedgerState c =
+  ExtLedgerState (Block.CardanoBlock c)
 
 data CardanoLedgerState c = CardanoLedgerState
   { clsState :: !(CardanoExtLedgerState c),
@@ -85,7 +95,7 @@ decodeLedgerState = CardanoLedgerState <$> extLedgerStateDecoder <*> Binary.from
         (decodeDisk codecConfig)
         (decodeDisk codecConfig)
 
-codecConfig :: CodecConfig (CardanoBlock StandardCrypto)
+codecConfig :: Block.CodecConfig (Block.CardanoBlock StandardCrypto)
 codecConfig = pClientInfoCodecConfig protoInfo
   where
     protoInfo = protocolClientInfoCardano mainnetEpochSlots
@@ -115,4 +125,42 @@ encodeLedgerState ledger =
 
 -- * Trim ledger state
 trimLedgerState :: CardanoLedgerState StandardCrypto -> CardanoLedgerState StandardCrypto
-trimLedgerState = id
+trimLedgerState (CardanoLedgerState extLedger blockNo) =
+  CardanoLedgerState (trimExtLedgerState extLedger) blockNo
+
+trimExtLedgerState
+  :: CardanoExtLedgerState StandardCrypto
+  -> CardanoExtLedgerState StandardCrypto
+trimExtLedgerState ledger =
+  case ExtLedger.ledgerState ledger of
+    HardForkLedgerState hfState ->
+      let newHfState = hap (fn id :* f) hfState
+       in updateLedgerState $ HardForkLedgerState newHfState
+  where
+    updateLedgerState
+      :: Block.LedgerState
+          (Block.CardanoBlock StandardCrypto)
+      -> ExtLedgerState (Block.CardanoBlock StandardCrypto)
+    updateLedgerState ledgerState' = ledger{ExtLedger.ledgerState = ledgerState'}
+
+    f
+      :: NP
+          (Block.LedgerState -.-> Block.LedgerState)
+          (Block.CardanoShelleyEras StandardCrypto)
+    f =
+      fn trimShelleyState
+        :* fn trimShelleyState
+        :* fn trimShelleyState
+        :* fn trimShelleyState
+        :* fn trimShelleyState
+        :* fn trimShelleyState
+        :* Nil
+
+trimShelleyState
+  :: (EraGov era)
+  => LedgerState (ShelleyBlock proto era)
+  -> LedgerState (ShelleyBlock proto era)
+trimShelleyState ledger = ledger{shelleyLedgerState = newEpochState'}
+  where
+    newEpochState = shelleyLedgerState ledger
+    newEpochState' = newEpochState{nesEs = def}
