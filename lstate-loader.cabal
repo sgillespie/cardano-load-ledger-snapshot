@@ -20,6 +20,7 @@ executable lstate-loader
     main-is:          Main.hs
     build-depends:
       base,
+      lstate-loader,
       bytestring,
       optparse-applicative,
       ouroboros-consensus,
@@ -38,3 +39,23 @@ executable lstate-loader
       -threaded
       -rtsopts
       "-with-rtsopts=-A16m -N3 --disable-delayed-os-memory-return"
+
+library
+    import:           warnings
+    build-depends:
+      base,
+      bytestring,
+      ouroboros-consensus,
+      cardano-binary,
+      cardano-ledger-byron,
+      cardano-ledger-core,
+      cardano-prelude,
+      formatting,
+      ouroboros-consensus,
+      ouroboros-consensus-cardano,
+      text
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    hs-source-dirs:   src
+    exposed-modules:
+      Data.Cardano.LState
