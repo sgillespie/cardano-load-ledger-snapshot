@@ -15,14 +15,23 @@ module Data.Cardano.LState
 import Cardano.Binary (Decoder (), Encoding (), FromCBOR (..), ToCBOR (..))
 import qualified Cardano.Binary as Binary
 import Cardano.Chain.Epoch.File (mainnetEpochSlots)
+import Cardano.Ledger.Alonzo.Data (Datum (..))
+import Cardano.Ledger.Alonzo.TxOut (AlonzoTxOut (..))
+import Cardano.Ledger.Babbage.TxOut (BabbageTxOut (..))
+import Cardano.Ledger.Core (EraTxOut (..))
 import Cardano.Ledger.Crypto (StandardCrypto ())
+import Cardano.Ledger.Mary.Value (MaryValue (..))
+import Cardano.Ledger.Shelley (ShelleyTxOut)
 import Cardano.Ledger.Shelley.Governance (EraGov (..))
-import Cardano.Ledger.Shelley.LedgerState (NewEpochState (..))
+import qualified Cardano.Ledger.Shelley.LedgerState as LedgerState
+import Cardano.Ledger.Shelley.TxOut (ShelleyTxOut (..))
+import Cardano.Ledger.Shelley.UTxO (UTxO (..))
 import Control.Exception (IOException (), try)
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as ByteString
-import Data.Default.Class (Default (..))
+import qualified Data.Map as Map
+import Data.Maybe.Strict (StrictMaybe (..))
 import Data.SOP.Strict (NP (..), fn, hap, type (-.->))
 import Data.Text (Text ())
 import qualified Data.Text as Text
@@ -148,19 +157,85 @@ trimExtLedgerState ledger =
           (Block.LedgerState -.-> Block.LedgerState)
           (Block.CardanoShelleyEras StandardCrypto)
     f =
-      fn trimShelleyState
-        :* fn trimShelleyState
-        :* fn trimShelleyState
-        :* fn trimShelleyState
-        :* fn trimShelleyState
-        :* fn trimShelleyState
+      fn (trimState trimShelleyTxOut)
+        :* fn (trimState trimAllegraTxOut)
+        :* fn (trimState trimMaryTxOut)
+        :* fn (trimState trimAlonzoTxOut)
+        :* fn (trimState trimBabbageTxOut)
+        :* fn (trimState trimConwayTxOut)
         :* Nil
 
-trimShelleyState
+trimState
   :: (EraGov era)
-  => LedgerState (ShelleyBlock proto era)
+  => (TxOut era -> TxOut era)
   -> LedgerState (ShelleyBlock proto era)
-trimShelleyState ledger = ledger{shelleyLedgerState = newEpochState'}
+  -> LedgerState (ShelleyBlock proto era)
+trimState f ledger = ledger{shelleyLedgerState = newEpochState'}
   where
     newEpochState = shelleyLedgerState ledger
-    newEpochState' = newEpochState{nesEs = def}
+    newEpochState' = newEpochState{LedgerState.nesEs = epochState'}
+
+    epochState = LedgerState.nesEs newEpochState
+    epochState' = epochState{LedgerState.esLState = ledgerState'}
+
+    ledgerState = LedgerState.esLState epochState
+    ledgerState' = ledgerState{LedgerState.lsUTxOState = utxoState'}
+
+    utxoState = LedgerState.lsUTxOState ledgerState
+    utxoState' = utxoState{LedgerState.utxosUtxo = utxos'}
+
+    utxos = LedgerState.utxosUtxo utxoState
+    utxos' = UTxO utxo'
+
+    utxo = unUTxO utxos
+    utxo' = Map.map f utxo
+
+trimShelleyTxOut
+  :: ShelleyTxOut (Block.ShelleyEra StandardCrypto)
+  -> ShelleyTxOut (Block.ShelleyEra StandardCrypto)
+trimShelleyTxOut = id
+
+trimAllegraTxOut
+  :: ShelleyTxOut (Block.AllegraEra StandardCrypto)
+  -> ShelleyTxOut (Block.AllegraEra StandardCrypto)
+trimAllegraTxOut = id
+
+trimMaryTxOut
+  :: ShelleyTxOut (Block.MaryEra StandardCrypto)
+  -> ShelleyTxOut (Block.MaryEra StandardCrypto)
+trimMaryTxOut (ShelleyTxOut addr val) = ShelleyTxOut addr val'
+  where
+    (MaryValue coin _) = val
+    val' = MaryValue coin mempty
+
+trimAlonzoTxOut
+  :: AlonzoTxOut (Block.AlonzoEra StandardCrypto)
+  -> AlonzoTxOut (Block.AlonzoEra StandardCrypto)
+trimAlonzoTxOut (AlonzoTxOut addr val _) = AlonzoTxOut addr val' hashes'
+  where
+    (MaryValue coin _) = val
+    val' = MaryValue coin mempty
+
+    hashes' = SNothing
+
+trimBabbageTxOut
+  :: BabbageTxOut (Block.BabbageEra StandardCrypto)
+  -> BabbageTxOut (Block.BabbageEra StandardCrypto)
+trimBabbageTxOut (BabbageTxOut addr val _ _) = BabbageTxOut addr val' datum' ref'
+  where
+    (MaryValue coin _) = val
+
+    val' = MaryValue coin mempty
+    datum' = NoDatum
+    ref' = SNothing
+
+trimConwayTxOut
+  :: BabbageTxOut (Block.ConwayEra StandardCrypto)
+  -> BabbageTxOut (Block.ConwayEra StandardCrypto)
+trimConwayTxOut (BabbageTxOut addr val _ _) = BabbageTxOut addr val' datum' ref'
+  where
+    (MaryValue coin _) = val
+
+    val' = MaryValue coin mempty
+    datum' = NoDatum
+    ref' = SNothing
